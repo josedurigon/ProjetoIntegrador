@@ -2,7 +2,9 @@ package com.example.myapplication
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.pm.PackageManager
+import android.location.Location
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
@@ -10,6 +12,7 @@ import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.View
 import androidx.appcompat.widget.AppCompatButton
 import androidx.appcompat.widget.AppCompatEditText
@@ -18,16 +21,21 @@ import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import kotlin.math.log10
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.FusedLocationProviderClient
+
 
 
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var TextSPL: AppCompatEditText
+    private lateinit var eTLocal: AppCompatTextView
     private lateinit var btStart: AppCompatButton
     private lateinit var alerta: AppCompatTextView
     private lateinit var btStop: AppCompatButton
     private lateinit var btPanic: AppCompatButton
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
 
     private val RECORD_AUDIO_PERMISSION_REQUEST_CODE = 1
     private val referencia = 2e-5
@@ -61,15 +69,17 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this) //gps
+
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             requestRecordAudioPermission()
         }
         TextSPL = findViewById(R.id.TextSPL)
+        eTLocal = findViewById(R.id.eTlocal)
         btStart = findViewById(R.id.btStart)
         alerta = findViewById(R.id.alerta)
         btStop = findViewById(R.id.btStop)
-
-
         btStart.setOnClickListener {
             handler.postDelayed(runnable,1)
         }
@@ -78,8 +88,28 @@ class MainActivity : AppCompatActivity() {
             handler.removeCallbacks(runnable)
 
             TextSPL.text!!.clear()
-
-
+        }
+        btPanic = findViewById(R.id.btPanic)
+        btPanic.setOnClickListener {
+            if (ActivityCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
+            ) {
+                fusedLocationClient.lastLocation
+                    .addOnSuccessListener { location: Location? ->
+                        val latLongString =
+                            "Latitude: ${location?.latitude}\nLongitude: ${location?.longitude}"
+                        eTLocal.setText(latLongString)
+                        Log.d("Localização", latLongString)
+                    }
+            } else {
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+                    1
+                )
+            }
         }
     }
 
@@ -94,14 +124,17 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /*
     fun panicButton(){
         btPanic = findViewById(R.id.btPanic)
         btPanic.setOnClickListener{
+            val location = getSystemService(Context.LOCATION_SERVICE)
+
             TODO("pegar dados de geolocalização")
         }
 
     }
-
+*/
     fun calculateSPL(): Double {
         // Configura a gravação de áudio
 
