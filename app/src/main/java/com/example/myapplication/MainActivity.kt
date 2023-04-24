@@ -2,7 +2,6 @@ package com.example.myapplication
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Location
 import android.media.AudioFormat
@@ -18,11 +17,11 @@ import androidx.appcompat.widget.AppCompatButton
 import androidx.appcompat.widget.AppCompatEditText
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.core.app.ActivityCompat
-import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import kotlin.math.log10
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.FusedLocationProviderClient
+
 
 
 
@@ -76,7 +75,7 @@ class MainActivity : AppCompatActivity() {
             requestRecordAudioPermission()
         }
         TextSPL = findViewById(R.id.TextSPL)
-        eTLocal = findViewById(R.id.eTlocal)
+        eTLocal = findViewById(R.id.eTLocal)
         btStart = findViewById(R.id.btStart)
         alerta = findViewById(R.id.alerta)
         btStop = findViewById(R.id.btStop)
@@ -100,7 +99,7 @@ class MainActivity : AppCompatActivity() {
                     .addOnSuccessListener { location: Location? ->
                         val latLongString =
                             "Latitude: ${location?.latitude}\nLongitude: ${location?.longitude}"
-                        eTLocal.setText(latLongString)
+                        eTLocal.text = latLongString
                         Log.d("Localização", latLongString)
                     }
             } else {
