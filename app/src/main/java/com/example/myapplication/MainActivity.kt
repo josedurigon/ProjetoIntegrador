@@ -2,6 +2,7 @@ package com.example.myapplication
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.ContentValues.TAG
 import android.content.pm.PackageManager
 import android.location.Location
 import android.media.AudioFormat
@@ -21,9 +22,11 @@ import androidx.core.content.ContextCompat
 import kotlin.math.log10
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.FusedLocationProviderClient
-
-
-
+import com.google.firebase.ktx.Firebase
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
+import com.google.firebase.firestore.ktx.firestore
 
 
 class MainActivity : AppCompatActivity() {
@@ -43,19 +46,33 @@ class MainActivity : AppCompatActivity() {
     private val SAMPLE_RATE = 44100
     private val CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_MONO
     private val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
-
     var recebeDB = 0.0
     var decibel = ""
     val nivelDeAlerta = 65.00
-
     var dbTexto = " db"
 
+    val IntegrasData = Firebase.firestore //Instancia do firebase
 
+    private val dbTempo = FirebaseFirestore.getInstance()
     private val handler = Handler(Looper.getMainLooper())
-
     private val runnable = object: Runnable {
         override fun run() {
             TextSPL.text!!.clear()
+
+            val data = hashMapOf(
+                "Data" to FieldValue.serverTimestamp(),
+                "SPL" to recebeDB
+            )
+
+            IntegrasData.collection("IntegrasData")
+                .add(data)
+                .addOnSuccessListener { documentReference ->
+                    Log.d(TAG, "Documento add com sucesso ${documentReference.id}")
+                }
+                .addOnFailureListener{ e ->
+                    Log.w(TAG, "#######Erro #######")
+                }
+
             recebeDB = calculateSPL()
             Alerta(recebeDB)
             decibel  = String.format("%.2f", recebeDB)
