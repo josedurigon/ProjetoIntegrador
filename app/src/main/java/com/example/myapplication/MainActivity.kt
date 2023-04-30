@@ -8,12 +8,15 @@ import android.location.Location
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.View
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.AppCompatButton
 import androidx.appcompat.widget.AppCompatEditText
 import androidx.appcompat.widget.AppCompatTextView
@@ -50,7 +53,7 @@ class MainActivity : AppCompatActivity() {
     var decibel = ""
     val nivelDeAlerta = 65.00
     var dbTexto = " db"
-
+    ///private val requestPermissionLauncher = registerForActivityResult()
     val IntegrasData = Firebase.firestore //Instancia do firebase
 
     private val dbTempo = FirebaseFirestore.getInstance()
@@ -59,19 +62,10 @@ class MainActivity : AppCompatActivity() {
         override fun run() {
             TextSPL.text!!.clear()
 
-            val data = hashMapOf(
-                "Data" to FieldValue.serverTimestamp(),
-                "SPL" to recebeDB
-            )
-
-            IntegrasData.collection("IntegrasData")
-                .add(data)
-                .addOnSuccessListener { documentReference ->
-                    Log.d(TAG, "Documento add com sucesso ${documentReference.id}")
-                }
-                .addOnFailureListener{ e ->
-                    Log.w(TAG, "#######Erro #######")
-                }
+            ///Se valor for maior que o nivel estabelecido, grava no banco o ruido excessivo
+            if(recebeDB > nivelDeAlerta){
+                bd()
+            }
 
             recebeDB = calculateSPL()
             Alerta(recebeDB)
@@ -85,9 +79,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this) //gps
-
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             requestRecordAudioPermission()
         }
@@ -140,17 +132,21 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /*
-    fun panicButton(){
-        btPanic = findViewById(R.id.btPanic)
-        btPanic.setOnClickListener{
-            val location = getSystemService(Context.LOCATION_SERVICE)
-
-            TODO("pegar dados de geolocalização")
-        }
+    fun bd(){
+        val data = hashMapOf(
+            "Data" to FieldValue.serverTimestamp(),
+            "SPL" to recebeDB
+        )
+        IntegrasData.collection("IntegrasData")
+            .add(data)
+            .addOnSuccessListener { documentReference ->
+                Log.d(TAG, "Documento add com sucesso ${documentReference.id}")
+            }
+            .addOnFailureListener{ e ->
+                Log.w(TAG, "#######Erro #######")
+            }
 
     }
-*/
     fun calculateSPL(): Double {
         // Configura a gravação de áudio
 
