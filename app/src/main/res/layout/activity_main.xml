@@ -86,14 +86,13 @@
         app:layout_constraintTop_toTopOf="parent" />
 
     <TextView
-        android:id="@+id/eTlocal"
+        android:id="@+id/eTLocal"
         android:layout_width="298dp"
         android:layout_height="43dp"
         android:layout_marginStart="61dp"
         android:layout_marginTop="284dp"
         android:layout_marginEnd="52dp"
-        android:text="TextView"
-        android:visibility="invisible"
+        android:visibility="visible"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.0"
         app:layout_constraintStart_toStartOf="parent"

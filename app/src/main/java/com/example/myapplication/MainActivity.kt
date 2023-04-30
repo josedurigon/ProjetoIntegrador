@@ -2,29 +2,37 @@ package com.example.myapplication
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.content.Context
+import android.content.ContentValues.TAG
 import android.content.pm.PackageManager
 import android.location.Location
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.View
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.AppCompatButton
 import androidx.appcompat.widget.AppCompatEditText
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.core.app.ActivityCompat
-import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import kotlin.math.log10
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.FusedLocationProviderClient
-
-
+import com.google.android.gms.tasks.OnCompleteListener
+import com.google.firebase.ktx.Firebase
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
+import com.google.firebase.firestore.ktx.firestore
+import com.google.firebase.messaging.FirebaseMessaging
 
 
 class MainActivity : AppCompatActivity() {
@@ -44,19 +52,24 @@ class MainActivity : AppCompatActivity() {
     private val SAMPLE_RATE = 44100
     private val CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_MONO
     private val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
-
     var recebeDB = 0.0
     var decibel = ""
     val nivelDeAlerta = 65.00
-
     var dbTexto = " db"
+    ///private val requestPermissionLauncher = registerForActivityResult()
+    val IntegrasData = Firebase.firestore //Instancia do firebase
 
-
+    private val dbTempo = FirebaseFirestore.getInstance()
     private val handler = Handler(Looper.getMainLooper())
-
     private val runnable = object: Runnable {
         override fun run() {
             TextSPL.text!!.clear()
+
+            ///Se valor for maior que o nivel estabelecido, grava no banco o ruido excessivo
+            if(recebeDB > nivelDeAlerta){
+                bdRuido()
+            }
+
             recebeDB = calculateSPL()
             Alerta(recebeDB)
             decibel  = String.format("%.2f", recebeDB)
@@ -69,14 +82,12 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this) //gps
-
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             requestRecordAudioPermission()
         }
         TextSPL = findViewById(R.id.TextSPL)
-        eTLocal = findViewById(R.id.eTlocal)
+        eTLocal = findViewById(R.id.eTLocal)
         btStart = findViewById(R.id.btStart)
         alerta = findViewById(R.id.alerta)
         btStop = findViewById(R.id.btStop)
@@ -86,31 +97,10 @@ class MainActivity : AppCompatActivity() {
 
         btStop.setOnClickListener{
             handler.removeCallbacks(runnable)
-
             TextSPL.text!!.clear()
         }
         btPanic = findViewById(R.id.btPanic)
-        btPanic.setOnClickListener {
-            if (ActivityCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.ACCESS_FINE_LOCATION
-                ) == PackageManager.PERMISSION_GRANTED
-            ) {
-                fusedLocationClient.lastLocation
-                    .addOnSuccessListener { location: Location? ->
-                        val latLongString =
-                            "Latitude: ${location?.latitude}\nLongitude: ${location?.longitude}"
-                        eTLocal.setText(latLongString)
-                        Log.d("Localização", latLongString)
-                    }
-            } else {
-                ActivityCompat.requestPermissions(
-                    this,
-                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
-                    1
-                )
-            }
-        }
+        panico()///modificado, função criada abaixo e modificada para gravar dados no firebase toda vez que for chamada
     }
 
     private fun Alerta(dbValor: Double){
@@ -124,17 +114,73 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /*
-    fun panicButton(){
-        btPanic = findViewById(R.id.btPanic)
-        btPanic.setOnClickListener{
-            val location = getSystemService(Context.LOCATION_SERVICE)
+    fun pushMessage(){
+        FirebaseMessaging.getInstance().token.addOnSuccessListener { OnCompleteListener{task ->
+            if (!task.isSuccessful){
+                Log.w(TAG, "Não foi possivel pegar o token do dispositivo", task.exception)
+                return@OnCompleteListener
+            }
+            val token = task.result
 
-            TODO("pegar dados de geolocalização")
+            val msg = getString(R.string.msg_token_fmt, token)
+            Log.d(TAG, msg)
+            Toast.makeText(baseContext, msg, Toast.LENGTH_SHORT).show()
+        } }
+    }
+
+    fun panico(){
+        btPanic.setOnClickListener {
+            if (ActivityCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
+            ) {
+                fusedLocationClient.lastLocation
+                    .addOnSuccessListener { location: Location? ->
+                        val latLongString =
+                            "Latitude: ${location?.latitude}\nLongitude: ${location?.longitude}"
+                        eTLocal.text = latLongString
+                        Log.d("Localização", latLongString)
+
+                        val db = FirebaseFirestore.getInstance()
+                        val data = hashMapOf(
+                            "latitude" to location?.latitude,
+                            "longitude" to location?.longitude,
+                            "time" to FieldValue.serverTimestamp()
+                        )
+                        db.collection("IntegrasPanico")
+                            .add(data)
+                            .addOnSuccessListener{ documentReference ->
+                                Log.d("FirebaseFirestore", "DocumentSnapshot added with ID: ${documentReference.id}")
+                            }
+                            .addOnFailureListener{e ->
+                                Log.w("FirebaseFirestore","Error adding document", e)
+                            }
+                    }
+            } else {
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+                    1
+                )
+            }
         }
+    }
+    fun bdRuido(){
+        val data = hashMapOf(
+            "Data" to FieldValue.serverTimestamp(),
+            "SPL" to recebeDB
+        )
+        IntegrasData.collection("IntegrasData")
+            .add(data)
+            .addOnSuccessListener { documentReference ->
+                Log.d(TAG, "Documento add com sucesso ${documentReference.id}")
+            }
+            .addOnFailureListener{ e ->
+                Log.w(TAG, "#######Erro #######", e)
+            }
 
     }
-*/
     fun calculateSPL(): Double {
         // Configura a gravação de áudio
 
