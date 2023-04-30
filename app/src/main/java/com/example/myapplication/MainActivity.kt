@@ -15,6 +15,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.View
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.AppCompatButton
@@ -25,11 +26,13 @@ import androidx.core.content.ContextCompat
 import kotlin.math.log10
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.tasks.OnCompleteListener
 import com.google.firebase.ktx.Firebase
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.ktx.firestore
+import com.google.firebase.messaging.FirebaseMessaging
 
 
 class MainActivity : AppCompatActivity() {
@@ -64,7 +67,7 @@ class MainActivity : AppCompatActivity() {
 
             ///Se valor for maior que o nivel estabelecido, grava no banco o ruido excessivo
             if(recebeDB > nivelDeAlerta){
-                bd()
+                bdRuido()
             }
 
             recebeDB = calculateSPL()
@@ -94,31 +97,10 @@ class MainActivity : AppCompatActivity() {
 
         btStop.setOnClickListener{
             handler.removeCallbacks(runnable)
-
             TextSPL.text!!.clear()
         }
         btPanic = findViewById(R.id.btPanic)
-        btPanic.setOnClickListener {
-            if (ActivityCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.ACCESS_FINE_LOCATION
-                ) == PackageManager.PERMISSION_GRANTED
-            ) {
-                fusedLocationClient.lastLocation
-                    .addOnSuccessListener { location: Location? ->
-                        val latLongString =
-                            "Latitude: ${location?.latitude}\nLongitude: ${location?.longitude}"
-                        eTLocal.text = latLongString
-                        Log.d("Localização", latLongString)
-                    }
-            } else {
-                ActivityCompat.requestPermissions(
-                    this,
-                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
-                    1
-                )
-            }
-        }
+        panico()///modificado, função criada abaixo e modificada para gravar dados no firebase toda vez que for chamada
     }
 
     private fun Alerta(dbValor: Double){
@@ -132,7 +114,59 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    fun bd(){
+    fun pushMessage(){
+        FirebaseMessaging.getInstance().token.addOnSuccessListener { OnCompleteListener{task ->
+            if (!task.isSuccessful){
+                Log.w(TAG, "Não foi possivel pegar o token do dispositivo", task.exception)
+                return@OnCompleteListener
+            }
+            val token = task.result
+
+            val msg = getString(R.string.msg_token_fmt, token)
+            Log.d(TAG, msg)
+            Toast.makeText(baseContext, msg, Toast.LENGTH_SHORT).show()
+        } }
+    }
+
+    fun panico(){
+        btPanic.setOnClickListener {
+            if (ActivityCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
+            ) {
+                fusedLocationClient.lastLocation
+                    .addOnSuccessListener { location: Location? ->
+                        val latLongString =
+                            "Latitude: ${location?.latitude}\nLongitude: ${location?.longitude}"
+                        eTLocal.text = latLongString
+                        Log.d("Localização", latLongString)
+
+                        val db = FirebaseFirestore.getInstance()
+                        val data = hashMapOf(
+                            "latitude" to location?.latitude,
+                            "longitude" to location?.longitude,
+                            "time" to FieldValue.serverTimestamp()
+                        )
+                        db.collection("IntegrasPanico")
+                            .add(data)
+                            .addOnSuccessListener{ documentReference ->
+                                Log.d("FirebaseFirestore", "DocumentSnapshot added with ID: ${documentReference.id}")
+                            }
+                            .addOnFailureListener{e ->
+                                Log.w("FirebaseFirestore","Error adding document", e)
+                            }
+                    }
+            } else {
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+                    1
+                )
+            }
+        }
+    }
+    fun bdRuido(){
         val data = hashMapOf(
             "Data" to FieldValue.serverTimestamp(),
             "SPL" to recebeDB
@@ -143,7 +177,7 @@ class MainActivity : AppCompatActivity() {
                 Log.d(TAG, "Documento add com sucesso ${documentReference.id}")
             }
             .addOnFailureListener{ e ->
-                Log.w(TAG, "#######Erro #######")
+                Log.w(TAG, "#######Erro #######", e)
             }
 
     }
