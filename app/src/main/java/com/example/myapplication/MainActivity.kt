@@ -2,6 +2,7 @@ package com.example.myapplication
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.Notification
 import android.content.ContentValues.TAG
 import android.content.pm.PackageManager
 import android.location.Location
@@ -44,6 +45,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btStop: AppCompatButton
     private lateinit var btPanic: AppCompatButton
     private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private val REQUEST_CODE_LOCATION = 1
+
 
     private val RECORD_AUDIO_PERMISSION_REQUEST_CODE = 1
     private val referencia = 2e-5
@@ -99,8 +102,8 @@ class MainActivity : AppCompatActivity() {
             handler.removeCallbacks(runnable)
             TextSPL.text!!.clear()
         }
-        btPanic = findViewById(R.id.btPanic)
-        panico()///modificado, função criada abaixo e modificada para gravar dados no firebase toda vez que for chamada
+        btPanic = findViewById(R.id.btPanic)                    ///PANICO
+        panico()            ///modificado, função criada abaixo e modificada para gravar dados no firebase toda vez que for chamada
     }
 
     private fun Alerta(dbValor: Double){
@@ -166,21 +169,71 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-    fun bdRuido(){
-        val data = hashMapOf(
-            "Data" to FieldValue.serverTimestamp(),
-            "SPL" to recebeDB
-        )
-        IntegrasData.collection("IntegrasData")
-            .add(data)
-            .addOnSuccessListener { documentReference ->
-                Log.d(TAG, "Documento add com sucesso ${documentReference.id}")
-            }
-            .addOnFailureListener{ e ->
-                Log.w(TAG, "#######Erro #######", e)
-            }
 
+/*
+    val data = hashMapOf(
+        "Data" to FieldValue.serverTimestamp(),
+        "SPL" to recebeDB
+
+
+    )
+    IntegrasData.collection("IntegrasData")
+    .add(data)
+    .addOnSuccessListener { documentReference ->
+        Log.d(TAG, "Documento add com sucesso ${documentReference.id}")
     }
+    .addOnFailureListener{ e ->
+        Log.w(TAG, "#######Erro #######", e)
+    }
+
+*/
+
+    fun bdRuido() {
+        // Obtenha a instância do provedor de localização
+        val fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
+        val db = FirebaseFirestore.getInstance()
+
+
+        // Verifique se a permissão de localização foi concedida
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            // Obtenha a última localização conhecida
+            fusedLocationProviderClient.lastLocation
+                .addOnSuccessListener { location: Location? ->
+                    // Verifique se a localização é válida
+                    if (location != null) {
+                        // Obtenha as coordenadas de latitude e longitude
+                        val latitude = location.latitude
+                        val longitude = location.longitude
+
+                        // Crie o mapa de dados com todas as informações
+                        val data = hashMapOf(
+                            "Data" to FieldValue.serverTimestamp(),
+                            "SPL" to recebeDB,
+                            "Latitude" to latitude,
+                            "Longitude" to longitude
+                        )
+
+                        // Adicione os dados ao Firestore
+                        val collectionRef = db.collection("IntegrasData")
+                        collectionRef.add(data)
+                            .addOnSuccessListener { documentReference ->
+                                Log.d(TAG, "Documento adicionado com sucesso: ${documentReference.id}")
+                            }
+                            .addOnFailureListener { exception ->
+                                Log.w(TAG, "Erro ao adicionar documento", exception)
+                            }
+                    } else {
+                        Log.d(TAG, "Localização não encontrada")
+                    }
+                }
+        } else {
+            // Permissão de localização não concedida, solicite-a ao usuário
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), REQUEST_CODE_LOCATION)
+        }
+    }
+
+
+
     fun calculateSPL(): Double {
         // Configura a gravação de áudio
 
